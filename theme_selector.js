@@ -16,6 +16,7 @@
    'use strict';
 
     var themes = {
+      "None": "none",
       "Default": null,
       "3024-day": "/static/components/codemirror/theme/3024-day.css",
       "3024-night": "/static/components/codemirror/theme/3024-night.css",
@@ -99,11 +100,15 @@
     };
 
     var CELLS, CODE_CELL;
+    var is_notebook = true;
 
 
     function add_to_toolbar(current_theme) {
+      console.log('injecting toolbar');
 
-        var cell_menu = $('#cell_menu'),
+      var view_str = is_notebook ? '#view_menu' : '#view-menu';
+
+        var view_menu = $(view_str),
           divider = $('<li/>').addClass('divider'),
           theme_btn = $('<li/>').addClass('dropdown-submenu'),
           theme_txt = $('<a/>').text('Code Syntax Theme').attr('href', '#'),
@@ -115,11 +120,13 @@
           line_txt = $('<a/>').text('Code Line Numbers').attr('href', '#');
 
         // Add label to the toolbar
-        cell_menu
+        view_menu
           .append(divider)
           .append(theme_btn.append(theme_txt).append(theme_list))
-          .append(font_btn.append(font_txt).append(font_list))
-          .append(line_btn.append(line_txt));
+          .append(font_btn.append(font_txt).append(font_list));
+        if (is_notebook) {
+            view_menu.append(line_btn.append(line_txt));
+        }
 
         // Add themes to the selector
         for (var key in themes){
@@ -131,6 +138,8 @@
               )
             );
         }
+
+        console.log('foo');
 
         theme_list.click(
           function(e){
@@ -195,6 +204,9 @@
     }
 
     function load_css(theme) {
+      if (theme === 'ipython') {
+        return;
+      }
         // Create a link element to attach the styles
         var link = document.createElement("link");
         link.type = "text/css";
@@ -229,93 +241,110 @@
 
     }
 
+   function theme_patch(new_theme) {
+     if (is_notebook) {
+       var config = CODE_CELL.config;
+       if (new_theme === "None") {
+         var patch = { CodeCell : {cm_config : {mode : null}} };
+       } else {
+         var patch = { CodeCell : {cm_config : { theme : new_theme }} };
+       }
+       config.update(patch);
+       for (var i = 0; i < CELLS.length; i++){
+         if(CELLS[i].cell_type == "code"){
+           CELLS[i].code_mirror.setOption('theme', new_theme);
+         }
+       }
+       return;
+     }
+     if (new_theme === "none") {
+       Jupyter.editor.update_codemirror_options({ 'mode' : null });
+     } else {
+       Jupyter.editor.update_codemirror_options(
+         { 'theme': new_theme, 'mode' : 'text/x-python' });
+     }
+   }
+
     function theme_toggle(new_theme) {
-
       new_theme = (new_theme === "Default")? "ipython" : new_theme;
-
-      if(new_theme !== "ipython") load_css(new_theme);
-
-      var config = CODE_CELL.config;
-      var patch = {
-        CodeCell:{
-          cm_config:{
-            theme: new_theme
-          }
-        }
-      }
-      config.update(patch);
-
-      for (var i = 0; i < CELLS.length; i++){
-        if(CELLS[i].cell_type == "code"){
-          CELLS[i].code_mirror.setOption('theme', new_theme);
-        }
-      }
-
+      if(new_theme !== "ipython" && new_theme !== "None") load_css(new_theme);
+      theme_patch(new_theme);
     }
 
+   function font_patch(font_key) {
+     if (is_notebook) {
+       var config = CODE_CELL.config;
+       var patch = { CodeCell:{ cm_config:{ font_family: font_key } } };
+       config.update(patch);
+       return;
+     } 
+     Jupyter.editor.update_codemirror_options({'font_face': font_key});
+   }
+
     function font_toggle(key, css, url) {
-
-      var config = CODE_CELL.config;
-      var patch = {
-        CodeCell:{
-          cm_config:{
-            font_family: key
-          }
-        }
-      }
-      config.update(patch);
-
       if (key !== "default") {
         load_font(url);
       }
-
+      font_patch(key);
       css_toggle(css);
-
     }
 
-
-    function load_cells() {
-
+    function load_cfg() {
+      if (is_notebook) {
         for (var i = 0; i < CELLS.length; i++){
           if(CELLS[i].cell_type == "code"){
             CODE_CELL = CELLS[i];
             break;
           }
         }
-
-        try {
-          var theme = CODE_CELL.config.data.CodeCell.cm_config.theme;
-          var key = CODE_CELL.config.data.CodeCell.cm_config.font_family;
-
-          load_css(theme);
-
-          if (key !== "default") {
-            load_font(fonts[key].url);
-            css_toggle(fonts[key].css);
-          }
-        }
-        catch(error) {
-          console.log(error);
-        }
-
-        add_to_toolbar();
+        var theme = CODE_CELL.config.data.CodeCell.cm_config.theme;
+        var font_key = CODE_CELL.config.data.CodeCell.cm_config.font_family;
+        return { font_key, theme };
+      } 
+      var theme = Jupyter.editor.codemirror.options.theme;
+      var font_key = Jupyter.editor.codemirror.options.font_family;
+      return { font_key, theme };
     }
 
+    function load() {
+      try {
+        var cfg = load_cfg();
+        var key = cfg.font_key;
+        var theme = cfg.theme;
+        console.log('font = ' + key);
+        console.log('theme = ' + theme);
+
+        load_css(theme);
+
+        if (typeof key !== 'undefined' && key !== "default") {
+          load_font(fonts[key].url);
+          css_toggle(fonts[key].css);
+        }
+      }
+      catch(error) {
+        console.log(error);
+      }
+      add_to_toolbar();
+    }
 
     function load_ipython_extension() {
-
+      if (typeof Jupyter.editor !== 'undefined') {
+        // editor
+        is_notebook = false;
+        load();
+      } else {
         CELLS = Jupyter.notebook.get_cells();
-
-        if (CELLS.length < 1) {
-            setTimeout(function(){
-                load_ipython_extension();
-            },250);
+        if (CELLS.length > 0) {
+          // notebook 
+          load();
+        } else {
+          setTimeout(function(){
+              load_ipython_extension();
+          },250);
         }
-        else {
-            load_cells()
-        }
-
+      }
     }
+
 
     return { load_ipython_extension: load_ipython_extension };
 
