@@ -98,6 +98,7 @@ define([ 'require', 'jquery', 'base/js/namespace' ], function(require, $,
 
   var CELLS, CODE_CELL;
   var is_notebook = true;
+  var base_url;
 
   function add_to_toolbar(current_theme) {
     console.log('injecting toolbar');
@@ -181,7 +182,9 @@ define([ 'require', 'jquery', 'base/js/namespace' ], function(require, $,
     var link = document.createElement("link");
     link.type = "text/css";
     link.rel = "stylesheet";
-    link.href = window.location.origin + require.toUrl(themes[theme]);
+    // link.href = window.location.origin + require.toUrl(themes[theme]);
+    link.href =
+        window.location.origin + base_url + require.toUrl(themes[theme]);
     link.id = theme + "-css";
     document.getElementsByTagName("head")[0].appendChild(link);
   }
@@ -296,15 +299,19 @@ define([ 'require', 'jquery', 'base/js/namespace' ], function(require, $,
     add_to_toolbar();
   }
 
+  function noslash(url) { return url.length < 2 ? "" : url; }
+
   function load_ipython_extension() {
     if (typeof Jupyter.editor !== 'undefined') {
       // editor
       is_notebook = false;
+      base_url = noslash(Jupyter.editor.base_url);
       load();
     } else {
       CELLS = Jupyter.notebook.get_cells();
       if (CELLS.length > 0) {
         // notebook
+        base_url = noslash(Jupyter.notebook.base_url);
         load();
       } else {
         setTimeout(function() { load_ipython_extension(); }, 250);
