@@ -10,12 +10,9 @@ This **_Jupyter_ Notebook Extension** let's you select the code syntax highlight
 ### Installation:
 
 ```shell
-# Create required directory in case (optional)
-$ mkdir -p $(jupyter --data-dir)/nbextensions/jupyter_themes
-$ cd $(jupyter --data-dir)/nbextensions/jupyter_themes
-$ wget https://raw.githubusercontent.com/merqurio/jupyter_themes/master/theme_selector.js
-# Activate the extension
-$ cd ../ && jupyter nbextension enable jupyter_themes/theme_selector --section="common"
+$ git clone <url>
+$ jupyter nbextension install jupyter_themes/ [--sys-prefix|--user]
+$ jupyter nbextension enable jupyter_themes/theme_selector --section='common'
 ```
 
 ### Usage:
